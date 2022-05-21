@@ -6,6 +6,8 @@ import hashlib
 
 import utils
 
+MINING_DIFFICULTY = 3
+
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
 class BlockChain(object):
@@ -32,19 +34,63 @@ class BlockChain(object):
         sorted_block = json.dumps(block, sort_keys=True) # Re sort block kaz double check
         return hashlib.sha256(sorted_block.encode()).hexdigest()
 
-    
-def _print(chains):
-    for i, chain in enumerate(chains):
-        print(f'{"="*25} Chain {i} {"="*25}')
-        for k, v in chain.items():
-            print(f'{k:15}{v}')
-    print(f'{"*"*25}')
+    def add_transaction(self,
+        sender_block_chain_address,
+        recipient_block_chain_address,
+        value
+    ):
+        transaction = utils.sorted_dict_by_key({
+          'sender_block_chain_address': sender_block_chain_address,
+          'recipient_block_chain_address': recipient_block_chain_address,
+          'value': float(value)
+        })
+        self.transaction_pool.append(transaction)
+        return True
+
+    def valid_proof(self,
+        transactions,
+        previous_hash,
+        nonce,
+        difficulty=MINING_DIFFICULTY
+    ):
+        guess_block = utils.sorted_dict_by_key({
+            'transactions': transactions,
+            'nonce': nonce,
+            'previous_hash': previous_hash
+        })
+        guess_hash = self.hash(guess_block)
+        return guess_hash[:difficulty] == '0'*difficulty
+
+    def proof_of_work(self):
+        transactions = self.transaction_pool.copy()
+        previous_hash = self.hash(self.chain[-1])
+        nonce = 0 # challenge value
+        while self.valid_proof(transactions, previous_hash, nonce) is False:
+            nonce += 1
+        return nonce
 
 
 if __name__ == '__main__':
+    # init
     block_chain = BlockChain()
-    _print(block_chain.chain)
-    block_chain.create_block(5, 'hash 1')
-    _print(block_chain.chain)
-    block_chain.create_block(2, 'hash 2')
-    _print(block_chain.chain)
+    utils._print(block_chain.chain)
+
+    # add transaction
+    block_chain.add_transaction('A', "B", 1.0)
+    # proof of work
+    nonce = block_chain.proof_of_work()
+    # create block
+    previous_hash = block_chain.hash(block_chain.chain[-1])
+    block_chain.create_block(nonce, previous_hash)
+    utils._print(block_chain.chain)
+
+    # add transaction
+    block_chain.add_transaction('A', "B", 2.0)
+    block_chain.add_transaction('B', "C", 3.0)
+    block_chain.add_transaction('C', "D", 10.0)
+    # proof of work
+    nonce = block_chain.proof_of_work()
+    # create block
+    previous_hash = block_chain.hash(block_chain.chain[-1])
+    block_chain.create_block(nonce, previous_hash)
+    utils._print(block_chain.chain)
